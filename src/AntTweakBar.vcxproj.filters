@@ -1,0 +1,240 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{77d2dce2-13f6-4a69-8a90-fefeef4417ff}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;rc;def;r;odl;idl;hpj;bat</Extensions>
+    </Filter>
+    <Filter Include="Public Header Files">
+      <UniqueIdentifier>{bfecd057-c8cb-4fcc-9259-35f1c7f7ca6b}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl</Extensions>
+    </Filter>
+    <Filter Include="Private Header Files">
+      <UniqueIdentifier>{e520abd7-550c-430f-87b7-799bf35cf744}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{be707ce8-9650-499c-87a9-b1563ae6b6d2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Effect11">
+      <UniqueIdentifier>{4ded02fb-5159-457a-8635-a7bb3ccf2ffe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Effect11\inc">
+      <UniqueIdentifier>{a779c0ce-9a41-4072-a9e7-aca910d5eff3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Effect11\binary">
+      <UniqueIdentifier>{55cff47e-fdd2-4279-93e1-8b606ee6d027}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="AntTweakBar.rc">
+      <Filter>Source Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="LoadOGL.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TwBar.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TwColors.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TwDirect3D10.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TwDirect3D9.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TwEventGLFW.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TwEventGLUT.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TwEventSDL.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TwEventWin.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TwFonts.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TwMgr.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TwOpenGL.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TwPrecomp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TwDirect3D11.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Effects11\d3dx11dbg.cpp">
+      <Filter>Effect11</Filter>
+    </ClCompile>
+    <ClCompile Include="Effects11\d3dxGlobal.cpp">
+      <Filter>Effect11</Filter>
+    </ClCompile>
+    <ClCompile Include="Effects11\EffectAPI.cpp">
+      <Filter>Effect11</Filter>
+    </ClCompile>
+    <ClCompile Include="Effects11\EffectLoad.cpp">
+      <Filter>Effect11</Filter>
+    </ClCompile>
+    <ClCompile Include="Effects11\EffectNonRuntime.cpp">
+      <Filter>Effect11</Filter>
+    </ClCompile>
+    <ClCompile Include="Effects11\EffectReflection.cpp">
+      <Filter>Effect11</Filter>
+    </ClCompile>
+    <ClCompile Include="Effects11\EffectRuntime.cpp">
+      <Filter>Effect11</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\include\AntTweakBar.h">
+      <Filter>Public Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AntPerfTimer.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="LoadOGL.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MiniGLFW.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MiniGLUT.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MiniSDL.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TwBar.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TwColors.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TwDirect3D10.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TwDirect3D9.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TwFonts.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TwGraph.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TwMgr.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TwOpenGL.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TwPrecomp.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="res\TwXCursors.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TwDirect3D11.h">
+      <Filter>Private Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Effects11\Effect.h">
+      <Filter>Effect11</Filter>
+    </ClInclude>
+    <ClInclude Include="Effects11\EffectLoad.h">
+      <Filter>Effect11</Filter>
+    </ClInclude>
+    <ClInclude Include="Effects11\Binary\EffectBinaryFormat.h">
+      <Filter>Effect11\binary</Filter>
+    </ClInclude>
+    <ClInclude Include="Effects11\Binary\EffectStateBase11.h">
+      <Filter>Effect11\binary</Filter>
+    </ClInclude>
+    <ClInclude Include="Effects11\Binary\EffectStates11.h">
+      <Filter>Effect11\binary</Filter>
+    </ClInclude>
+    <ClInclude Include="Effects11\Binary\SOParser.h">
+      <Filter>Effect11\binary</Filter>
+    </ClInclude>
+    <ClInclude Include="Effects11\Inc\d3dx11dbg.h">
+      <Filter>Effect11\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="Effects11\Inc\d3dx11effect.h">
+      <Filter>Effect11\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="Effects11\Inc\d3dxGlobal.h">
+      <Filter>Effect11\inc</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="res\FontChars.txt">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\FontLargeAA.pgm">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\FontNormal.pgm">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="FontSmall.pgm">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\cur00000.cur">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\cur00001.cur">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\cur00002.cur">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\cur00003.cur">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\cur00004.cur">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\cur00005.cur">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\cur00006.cur">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\cur00007.cur">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\cur00008.cur">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\cur00009.cur">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\cur00010.cur">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\cur00011.cur">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\cur00012.cur">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\cur00013.cur">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Effects11\EffectVariable.inl">
+      <Filter>Effect11</Filter>
+    </None>
+  </ItemGroup>
+</Project>
