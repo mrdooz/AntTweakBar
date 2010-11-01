@@ -16,7 +16,7 @@
 #define ANT_TW_DIRECT3D11_INCLUDED
 
 #include "TwGraph.h"
-
+#include "effects11/inc/d3dx11effect.h"
 
 //  ---------------------------------------------------------------------------
 
@@ -80,7 +80,8 @@ protected:
         bool                    m_LineBgColors;
     };
 
-    struct CState11 *               m_State;
+		D3DX11_STATE_BLOCK_MASK					m_StateBlockMask;
+    struct StateBlock *               m_State;
     struct ID3D11DepthStencilState *m_DepthStencilState;
     struct ID3D11BlendState *       m_BlendState;
     struct ID3D11RasterizerState *  m_RasterState;
