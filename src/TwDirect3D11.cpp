@@ -11,17 +11,24 @@
 
 
 #include "TwPrecomp.h"
-#include "TwDirect3D10.h"
+#include <d3d11.h>
+#include <d3dx11.h>
+#include <tchar.h>
+#include <atlbase.h>
+#include "Effects11/Effect.h"
+#include "effects11/inc/d3dx11effect.h"
+
+#include "TwDirect3D11.h"
 #include "TwMgr.h"
 #include "TwColors.h"
 
-#include "d3d10vs2003.h" // Workaround to include D3D10.h with VS2003
-#include <d3d10.h>
+//#include "d3d10vs2003.h" // Workaround to include D3D11.h with VS2003
 
+#pragma comment (lib, "d3dcompiler.lib")
 
 using namespace std;
 
-static const char *g_ErrCantLoadD3D10   = "Cannot load Direct3D10 library dynamically";
+static const char *g_ErrCantLoadD3D11   = "Cannot load Direct3D10 library dynamically";
 static const char *g_ErrCompileFX       = "Direct3D10 effect compilation failed";
 static const char *g_ErrCreateFX        = "Direct3D10 effect creation failed";
 static const char *g_ErrTechNotFound    = "Cannot find Direct3D10 technique effect";
@@ -30,38 +37,42 @@ static const char *g_ErrCreateBuffer    = "Direct3D10 vertex buffer creation fai
 
 //  ---------------------------------------------------------------------------
 
-// Dynamically loaded D3D10 functions (to avoid static linkage with d3d10.lib)
-HMODULE g_D3D10Module = NULL;
-typedef HRESULT (WINAPI *D3D10CompileEffectFromMemoryProc)(void *pData, SIZE_T DataLength, LPCSTR pSrcFileName, CONST D3D10_SHADER_MACRO *pDefines, ID3D10Include *pInclude, UINT HLSLFlags, UINT FXFlags, ID3D10Blob **ppCompiledEffect, ID3D10Blob **ppErrors);
-typedef HRESULT (WINAPI *D3D10CreateEffectFromMemoryProc)(void *pData, SIZE_T DataLength, UINT FXFlags, ID3D10Device *pDevice, ID3D10EffectPool *pEffectPool, ID3D10Effect **ppEffect);
-typedef HRESULT (WINAPI *D3D10StateBlockMaskEnableAllProc)(D3D10_STATE_BLOCK_MASK *pMask);
-typedef HRESULT (WINAPI *D3D10CreateStateBlockProc)(ID3D10Device *pDevice, D3D10_STATE_BLOCK_MASK *pStateBlockMask, ID3D10StateBlock **ppStateBlock);
-D3D10CompileEffectFromMemoryProc _D3D10CompileEffectFromMemory = NULL;
-D3D10CreateEffectFromMemoryProc _D3D10CreateEffectFromMemory = NULL;
-D3D10StateBlockMaskEnableAllProc _D3D10StateBlockMaskEnableAll = NULL;
-D3D10CreateStateBlockProc _D3D10CreateStateBlock = NULL;
+// Dynamically loaded D3D11 functions (to avoid static linkage with d3d10.lib)
+HMODULE g_D3D11Module = NULL;
+
+typedef HRESULT (WINAPI *D3DX11CompileFromMemoryProc)(LPCSTR pSrcData, SIZE_T SrcDataLen, LPCSTR pFileName, const D3D10_SHADER_MACRO *pDefines, LPD3D10INCLUDE pInclude, LPCSTR pFunctionName, LPCSTR pProfile, UINT Flags1, UINT Flags2, ID3DX11ThreadPump *pPump, ID3D10Blob **ppShader, ID3D10Blob **ppErrorMsgs, HRESULT *pHResult);
+typedef HRESULT (WINAPI *D3D11CreateEffectFromMemoryProc)(void *pData, SIZE_T DataLength, UINT FXFlags, ID3D11Device *pDevice, ID3D10EffectPool *pEffectPool, ID3DX11Effect **ppEffect);
+typedef HRESULT (WINAPI *D3D11StateBlockMaskEnableAllProc)(D3D10_STATE_BLOCK_MASK *pMask);
+typedef HRESULT (WINAPI *D3D11CreateStateBlockProc)(ID3D11Device *pDevice, D3D10_STATE_BLOCK_MASK *pStateBlockMask, ID3D10StateBlock **ppStateBlock);
+D3DX11CompileFromMemoryProc _D3DX11CompileFromMemoryProc = NULL;
+//D3D11StateBlockMaskEnableAllProc _D3D11StateBlockMaskEnableAll = NULL;
+//D3D11CreateStateBlockProc _D3D11CreateStateBlock = NULL;
 
 static int LoadDirect3D10()
 {
-    if( g_D3D10Module!=NULL )
+    if( g_D3D11Module!=NULL )
         return 1; // Direct3D10 library already loaded
 
-    g_D3D10Module = LoadLibrary("D3D10.DLL");
-    if( g_D3D10Module )
+    g_D3D11Module = LoadLibrary("D3DX11_42.DLL");
+    if( g_D3D11Module )
     {
         int res = 1;
-        _D3D10CompileEffectFromMemory = reinterpret_cast<D3D10CompileEffectFromMemoryProc>(GetProcAddress(g_D3D10Module, "D3D10CompileEffectFromMemory"));
-        if( _D3D10CompileEffectFromMemory==NULL )
+
+        _D3DX11CompileFromMemoryProc = reinterpret_cast<D3DX11CompileFromMemoryProc>(GetProcAddress(g_D3D11Module, "D3DX11CompileFromMemory"));
+        if( _D3DX11CompileFromMemoryProc==NULL )
             res = 0;
-        _D3D10CreateEffectFromMemory = reinterpret_cast<D3D10CreateEffectFromMemoryProc>(GetProcAddress(g_D3D10Module, "D3D10CreateEffectFromMemory"));
-        if( _D3D10CreateEffectFromMemory==NULL )
+/*
+        _D3D11CreateEffectFromMemory = reinterpret_cast<D3D11CreateEffectFromMemoryProc>(GetProcAddress(g_D3D11Module, "D3D11CreateEffectFromMemory"));
+        if( _D3D11CreateEffectFromMemory==NULL )
             res = 0;
-        _D3D10StateBlockMaskEnableAll = reinterpret_cast<D3D10StateBlockMaskEnableAllProc>(GetProcAddress(g_D3D10Module, "D3D10StateBlockMaskEnableAll"));
-        if( _D3D10StateBlockMaskEnableAll==NULL )
+
+        _D3D11StateBlockMaskEnableAll = reinterpret_cast<D3D11StateBlockMaskEnableAllProc>(GetProcAddress(g_D3D11Module, "D3D11StateBlockMaskEnableAll"));
+        if( _D3D11StateBlockMaskEnableAll==NULL )
             res = 0;
-        _D3D10CreateStateBlock = reinterpret_cast<D3D10CreateStateBlockProc>(GetProcAddress(g_D3D10Module, "D3D10CreateStateBlock"));
-        if( _D3D10CreateStateBlock==NULL )
+        _D3D11CreateStateBlock = reinterpret_cast<D3D11CreateStateBlockProc>(GetProcAddress(g_D3D11Module, "D3D11CreateStateBlock"));
+        if( _D3D11CreateStateBlock==NULL )
             res = 0;
+*/
         return res;
     }
     else
@@ -70,17 +81,17 @@ static int LoadDirect3D10()
 
 static int UnloadDirect3D10()
 {
-    _D3D10CompileEffectFromMemory = NULL;
-    _D3D10CreateEffectFromMemory =  NULL;
-    _D3D10StateBlockMaskEnableAll = NULL;
-    _D3D10CreateStateBlock = NULL;
+    _D3DX11CompileFromMemoryProc = NULL;
+    //_D3D11CreateEffectFromMemory =  NULL;
+    //_D3D11StateBlockMaskEnableAll = NULL;
+    //_D3D11CreateStateBlock = NULL;
 
-    if( g_D3D10Module==NULL )
+    if( g_D3D11Module==NULL )
         return 1; // Direct3D10 library not loaded
 
-    if( FreeLibrary(g_D3D10Module) )
+    if( FreeLibrary(g_D3D11Module) )
     {
-        g_D3D10Module = NULL;
+        g_D3D11Module = NULL;
         return 1;
     }
     else
@@ -89,7 +100,7 @@ static int UnloadDirect3D10()
 
 //  ---------------------------------------------------------------------------
 
-static ID3D10ShaderResourceView *BindFont(ID3D10Device *_Dev, ID3D10EffectShaderResourceVariable *_ResVar, const CTexFont *_Font)
+static ID3D11ShaderResourceView *BindFont(ID3D11Device *_Dev, ID3DX11EffectShaderResourceVariable *_ResVar, const CTexFont *_Font)
 {
     assert(_Font!=NULL);
     assert(_ResVar!=NULL);
@@ -101,7 +112,7 @@ static ID3D10ShaderResourceView *BindFont(ID3D10Device *_Dev, ID3D10EffectShader
     for( int i=0; i<w*h; ++i, ++p )
         *p = 0x00ffffff | (((color32)(_Font->m_TexBytes[i]))<<24);
 
-    D3D10_TEXTURE2D_DESC desc;
+    D3D11_TEXTURE2D_DESC desc;
     desc.Width = w;
     desc.Height = h;
     desc.MipLevels = 1;
@@ -109,16 +120,17 @@ static ID3D10ShaderResourceView *BindFont(ID3D10Device *_Dev, ID3D10EffectShader
     desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     desc.SampleDesc.Count = 1;
     desc.SampleDesc.Quality = 0;
-    desc.Usage = D3D10_USAGE_IMMUTABLE;
-    desc.BindFlags = D3D10_BIND_SHADER_RESOURCE;
+    desc.Usage = D3D11_USAGE_IMMUTABLE;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
     desc.CPUAccessFlags = 0;
     desc.MiscFlags = 0;
-    D3D10_SUBRESOURCE_DATA data;
+    D3D11_SUBRESOURCE_DATA data;
     data.pSysMem = font32;
     data.SysMemPitch = w*sizeof(color32);
     data.SysMemSlicePitch = 0;
-    ID3D10Texture2D *tex = NULL;
-    ID3D10ShaderResourceView *texRV = NULL;
+    ID3D11Texture2D *tex = NULL;
+    ID3D11ShaderResourceView *texRV = NULL;
+
     if( SUCCEEDED(_Dev->CreateTexture2D(&desc, &data, &tex)) )
     {
         if( SUCCEEDED(_Dev->CreateShaderResourceView(tex, NULL, &texRV)) )
@@ -127,14 +139,14 @@ static ID3D10ShaderResourceView *BindFont(ID3D10Device *_Dev, ID3D10EffectShader
         tex->Release();
         tex = NULL;
     }
-
+    
     delete[] font32;
     return texRV;
 }
 
 //  ---------------------------------------------------------------------------
 
-static void UnbindFont(ID3D10Device *_Dev, ID3D10EffectShaderResourceVariable *_ResVar, ID3D10ShaderResourceView *_TexRV)
+static void UnbindFont(ID3D11Device *_Dev, ID3DX11EffectShaderResourceVariable *_ResVar, ID3D11ShaderResourceView *_TexRV)
 {
     (void)_Dev;
 
@@ -149,52 +161,234 @@ static void UnbindFont(ID3D10Device *_Dev, ID3D10EffectShaderResourceVariable *_
 }
 
 //  ---------------------------------------------------------------------------
-
-struct CState10
+/*
+typedef struct _D3DX11_STATE_BLOCK_MASK
 {
-    ID3D10StateBlock *  m_StateBlock;
+	BYTE VS;
+	BYTE VSSamplers[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT)];
+	BYTE VSShaderResources[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT)];
+	BYTE VSConstantBuffers[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT)];
+	BYTE VSInterfaces[D3DX11_BYTES_FROM_BITS(D3D11_SHADER_MAX_INTERFACES)];
+
+	BYTE HS;
+	BYTE HSSamplers[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT)];
+	BYTE HSShaderResources[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT)];
+	BYTE HSConstantBuffers[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT)];
+	BYTE HSInterfaces[D3DX11_BYTES_FROM_BITS(D3D11_SHADER_MAX_INTERFACES)];
+
+	BYTE DS;
+	BYTE DSSamplers[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT)];
+	BYTE DSShaderResources[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT)];
+	BYTE DSConstantBuffers[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT)];
+	BYTE DSInterfaces[D3DX11_BYTES_FROM_BITS(D3D11_SHADER_MAX_INTERFACES)];
+
+	BYTE GS;
+	BYTE GSSamplers[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT)];
+	BYTE GSShaderResources[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT)];
+	BYTE GSConstantBuffers[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT)];
+	BYTE GSInterfaces[D3DX11_BYTES_FROM_BITS(D3D11_SHADER_MAX_INTERFACES)];
+
+	BYTE PS;
+	BYTE PSSamplers[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT)];
+	BYTE PSShaderResources[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT)];
+	BYTE PSConstantBuffers[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT)];
+	BYTE PSInterfaces[D3DX11_BYTES_FROM_BITS(D3D11_SHADER_MAX_INTERFACES)];
+	BYTE PSUnorderedAccessViews;
+
+	BYTE CS;
+	BYTE CSSamplers[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT)];
+	BYTE CSShaderResources[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT)];
+	BYTE CSConstantBuffers[D3DX11_BYTES_FROM_BITS(D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT)];
+	BYTE CSInterfaces[D3DX11_BYTES_FROM_BITS(D3D11_SHADER_MAX_INTERFACES)];
+	BYTE CSUnorderedAccessViews;
+
+	BYTE IAVertexBuffers[D3DX11_BYTES_FROM_BITS(D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT)];
+	BYTE IAIndexBuffer;
+	BYTE IAInputLayout;
+	BYTE IAPrimitiveTopology;
+
+	BYTE OMRenderTargets;
+	BYTE OMDepthStencilState;
+	BYTE OMBlendState;
+
+	BYTE RSViewports;
+	BYTE RSScissorRects;
+	BYTE RSRasterizerState;
+
+	BYTE SOBuffers;
+
+	BYTE Predication;
+} D3DX11_STATE_BLOCK_MASK;
+*/
+
+#ifndef _SET_BIT
+#define _SET_BIT(bytes, x) (bytes[(x)/8] |= (1 << ((x) % 8)))
+#endif
+#define _GET_BIT(bytes, x) (bytes[(x)/8] & ~(1 << ((x) % 8)))
+
+
+struct StateBlock
+{
+	StateBlock(const D3DX11_STATE_BLOCK_MASK& mask, ID3D11DeviceContext *context) 
+    : _mask(mask)
+    , _context(context) 
+    , _vertex_shader(mask)
+    , _hull_shader(mask)
+    , _domain_shader(mask)
+    , _geometry_shader(mask)
+    , _pixel_shader(mask)
+    , _compute_shader(mask)
+  {
+  }
+
+	void save();
+	void apply();
+
+#define MK_SHADER_STATE(prefix, type, name)	\
+	template<class T>\
+	struct prefix ## ShaderStates\
+	{\
+    prefix ## ShaderStates(const D3DX11_STATE_BLOCK_MASK& mask) : _mask(mask) {} \
+    void operator=(const prefix ## ShaderStates&);\
+		void save(ID3D11DeviceContext *context)\
+		{\
+      for (int i = 0; i < D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT; ++i) \
+        if (_GET_BIT(_mask.prefix ## Samplers, i)) context->prefix ## GetSamplers(0, 1, &_samplers[i]); \
+			context->prefix ## GetShaderResources(0, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT, _shader_resources);\
+			context->prefix ## GetConstantBuffers(0, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT, _shader_constant_buffers);\
+			ID3D11ClassInstance *ins[D3D11_SHADER_MAX_INTERFACES];\
+			UINT count = D3D11_SHADER_MAX_INTERFACES;\
+			context->prefix ## GetShader(_shaders, ins, &count);\
+			/* TODO: store the unordered access view stuff*/  \
+		}\
+		CComPtr<ID3D11SamplerState> _samplers[D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT];\
+		ID3D11ShaderResourceView *_shader_resources[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT];\
+		ID3D11Buffer *_shader_constant_buffers[D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT];\
+    CComPtr<T> _shaders[D3D11_SHADER_MAX_INTERFACES];\
+    const D3DX11_STATE_BLOCK_MASK& _mask;\
+	}; prefix ## ShaderStates<type> name;
+
+	MK_SHADER_STATE(VS, ID3D11VertexShader, _vertex_shader);
+	MK_SHADER_STATE(HS, ID3D11HullShader, _hull_shader);
+	MK_SHADER_STATE(DS, ID3D11DomainShader, _domain_shader);
+	MK_SHADER_STATE(GS, ID3D11GeometryShader, _geometry_shader);
+	MK_SHADER_STATE(PS, ID3D11PixelShader, _pixel_shader);
+	MK_SHADER_STATE(CS, ID3D11ComputeShader, _compute_shader);
+
+  ID3D11Buffer *_vertex_buffers[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT];
+  ID3D11Buffer *_index_buffer;
+  ID3D11Buffer *_input_layout;
+  D3D11_PRIMITIVE_TOPOLOGY _topology;
+
+  ID3D11RenderTargetView *_render_targets[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT];
+  ID3D11RenderTargetView *_depth_stencil[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT];
+
+  ID3D11DepthStencilState *_depth_stencil_state;
+  UINT _depth_stencil_ref;
+
+  ID3D11BlendState *_blend_state;
+
+  D3D11_VIEWPORT _viewports[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+  D3D11_RECT _scissor_rects[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+  ID3D11RasterizerState *_rasterizer_state;
+
+  ID3D11Buffer *_so_buffers[D3D11_SO_BUFFER_SLOT_COUNT];
+
+  ID3D11Predicate *_predicate;
+  BOOL _predicate_value;
+
+	D3DX11_STATE_BLOCK_MASK _mask;
+	ID3D11DeviceContext *_context;
+};
+
+void StateBlock::save()
+{
+	if (_mask.VS) 
+		_vertex_shader.save(_context);
+
+	if (_mask.HS)
+		_hull_shader.save(_context);
+
+	if (_mask.DS)
+		_domain_shader.save(_context);
+
+	if (_mask.GS)
+		_geometry_shader.save(_context);
+
+	if (_mask.PS)
+		_pixel_shader.save(_context);
+
+	if (_mask.CS)
+		_compute_shader.save(_context);
+
+/*
+  ID3D11SamplerState* s;
+  ID3D11SamplerState* s2[10];
+  CComPtr<ID3D11SamplerState> x[10];
+  _context->VSGetSamplers(0, 1, &x[0]);
+*/
+}
+
+void StateBlock::apply()
+{
+
+}
+
+struct CState11
+{
+  // TODO(dooz)
+    //ID3DX11StateBlock *  m_StateBlock;
 
     void            Save();
     void            Restore();
-                    CState10(ID3D10Device *_Dev);
-                    ~CState10();
+                    CState11(ID3D11Device *_Dev);
+                    ~CState11();
 private:
-    ID3D10Device *  m_D3DDev;
+    ID3D11Device *  m_D3DDev;
 };
 
-CState10::CState10(ID3D10Device *_Dev)
+CState11::CState11(ID3D11Device *_Dev)
 {
-    ZeroMemory(this, sizeof(CState10));
+    ZeroMemory(this, sizeof(CState11));
     m_D3DDev = _Dev;
 }
 
-CState10::~CState10()
+CState11::~CState11()
 {
+  /*// TODO(dooz)
+
     if( m_StateBlock )
     {
         UINT rc = m_StateBlock->Release();
         assert( rc==0 ); (void)rc;
         m_StateBlock = NULL;
     }
+*/
 }
 
-void CState10::Save()
+void CState11::Save()
 {
+  // TODO(dooz)
+/*
     if( !m_StateBlock )
     {
-        D3D10_STATE_BLOCK_MASK stateMask;
-        _D3D10StateBlockMaskEnableAll(&stateMask);
-        _D3D10CreateStateBlock(m_D3DDev, &stateMask, &m_StateBlock);
+        D3D11_STATE_BLOCK_MASK stateMask;
+        _D3D11StateBlockMaskEnableAll(&stateMask);
+        _D3D11CreateStateBlock(m_D3DDev, &stateMask, &m_StateBlock);
     }
 
     if( m_StateBlock )
         m_StateBlock->Capture();
+*/
 }
 
-void CState10::Restore()
+void CState11::Restore()
 {
+  // TODO(dooz)
+/*
     if( m_StateBlock )
         m_StateBlock->Apply();
+*/
 }
 
 //  ---------------------------------------------------------------------------
@@ -237,17 +431,22 @@ static char g_ShaderFX[] = "// AntTweakBar shaders and techniques \n"
 
 //  ---------------------------------------------------------------------------
 
-int CTwGraphDirect3D10::Init()
+int CTwGraphDirect3D11::Init()
 {
     assert(g_TwMgr!=NULL);
     assert(g_TwMgr->m_Device!=NULL);
 
-    m_D3DDev = static_cast<ID3D10Device *>(g_TwMgr->m_Device);
+
+		StateBlock bb(D3DX11_STATE_BLOCK_MASK(), static_cast<ID3D11DeviceContext *>(g_TwMgr->m_Context));
+		bb.save();
+
+    m_D3DDev = static_cast<ID3D11Device *>(g_TwMgr->m_Device);
+    m_D3DContext = static_cast<ID3D11DeviceContext *>(g_TwMgr->m_Context);
     m_D3DDevInitialRefCount = m_D3DDev->AddRef() - 1;
 
     m_Drawing = false;
     m_OffsetX = m_OffsetY = 0;
-    m_ViewportInit = new D3D10_VIEWPORT;
+    m_ViewportInit = new D3D11_VIEWPORT;
     m_FontTex = NULL;
     m_FontD3DTexRV = NULL;
     m_WndWidth = 0;
@@ -274,25 +473,29 @@ int CTwGraphDirect3D10::Init()
     m_OffsetVar = NULL;
     m_CstColorVar = NULL;
 
-    // Load some D3D10 functions
+    // Load some D3D11 functions
     if( !LoadDirect3D10() )
     {
-        g_TwMgr->SetLastError(g_ErrCantLoadD3D10);
+        g_TwMgr->SetLastError(g_ErrCantLoadD3D11);
         Shut();
         return 0;
     }
 
     // Allocate state object
-    m_State = new CState10(m_D3DDev);
+    m_State = new CState11(m_D3DDev);
 
     // Compile shaders
-    DWORD shaderFlags = D3D10_SHADER_ENABLE_STRICTNESS;
+    // TODO(dooz)
+    DWORD shaderFlags = 0; //D3D11_SHADER_ENABLE_STRICTNESS;
     #if defined( DEBUG ) || defined( _DEBUG )
         shaderFlags |= D3D10_SHADER_DEBUG;
     #endif
     ID3D10Blob *compiledFX = NULL;
     ID3D10Blob *errors = NULL;
-    HRESULT hr = _D3D10CompileEffectFromMemory(g_ShaderFX, strlen(g_ShaderFX), "AntTweakBarFX", NULL, NULL, shaderFlags, 0, &compiledFX, &errors);
+
+
+    // TODO(dooz) can we get away with a lower shader level?
+    HRESULT hr = _D3DX11CompileFromMemoryProc(g_ShaderFX, strlen(g_ShaderFX), "AntTweakBarFX", NULL, NULL, NULL, "fx_5_0", shaderFlags, 0, NULL, &compiledFX, &errors, NULL);
     if( FAILED(hr) )
     {
         const size_t ERR_MSG_MAX_LEN = 4096;
@@ -314,7 +517,8 @@ int CTwGraphDirect3D10::Init()
         Shut();
         return 0;
     }
-    hr = _D3D10CreateEffectFromMemory(compiledFX->GetBufferPointer(), compiledFX->GetBufferSize(), 0, m_D3DDev, NULL, &m_Effect);
+
+    hr = D3DX11CreateEffectFromMemory(compiledFX->GetBufferPointer(), compiledFX->GetBufferSize(), 0, m_D3DDev, &m_Effect);
     compiledFX->Release();
     if( FAILED(hr) )
     {
@@ -336,12 +540,12 @@ int CTwGraphDirect3D10::Init()
     }
  
     // Create input layout for lines & rect
-    D3D10_INPUT_ELEMENT_DESC lineRectLayout[] =
+    D3D11_INPUT_ELEMENT_DESC lineRectLayout[] =
     {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D10_INPUT_PER_VERTEX_DATA, 0 },  
-        { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, offsetof(CLineRectVtx, m_Color), D3D10_INPUT_PER_VERTEX_DATA, 0 }
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },  
+        { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, offsetof(CLineRectVtx, m_Color), D3D11_INPUT_PER_VERTEX_DATA, 0 }
     };
-    D3D10_PASS_DESC passDesc;
+    D3DX11_PASS_DESC passDesc;
     hr = m_LineRectTech->GetPassByIndex(0)->GetDesc(&passDesc);
     if( SUCCEEDED(hr) )
         hr = m_D3DDev->CreateInputLayout(lineRectLayout, sizeof(lineRectLayout)/sizeof(lineRectLayout[0]), passDesc.pIAInputSignature, passDesc.IAInputSignatureSize, &m_LineRectVertexLayout);
@@ -353,11 +557,11 @@ int CTwGraphDirect3D10::Init()
     }
 
     // Create line vertex buffer
-    D3D10_BUFFER_DESC bd;
-    bd.Usage = D3D10_USAGE_DYNAMIC;
+    D3D11_BUFFER_DESC bd;
+    bd.Usage = D3D11_USAGE_DYNAMIC;
     bd.ByteWidth = 2 * sizeof(CLineRectVtx);
-    bd.BindFlags = D3D10_BIND_VERTEX_BUFFER;
-    bd.CPUAccessFlags = D3D10_CPU_ACCESS_WRITE;
+    bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     bd.MiscFlags = 0;
     hr = m_D3DDev->CreateBuffer(&bd, NULL, &m_LineVertexBuffer);
     if( FAILED(hr) )
@@ -378,11 +582,11 @@ int CTwGraphDirect3D10::Init()
     }
 
     // Create input layout for text
-    D3D10_INPUT_ELEMENT_DESC textLayout[] =
+    D3D11_INPUT_ELEMENT_DESC textLayout[] =
     {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D10_INPUT_PER_VERTEX_DATA, 0 },  
-        { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, offsetof(CTextVtx, m_Color), D3D10_INPUT_PER_VERTEX_DATA, 0 }, 
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, offsetof(CTextVtx, m_UV), D3D10_INPUT_PER_VERTEX_DATA, 0 }
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },  
+        { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, offsetof(CTextVtx, m_Color), D3D11_INPUT_PER_VERTEX_DATA, 0 }, 
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, offsetof(CTextVtx, m_UV), D3D11_INPUT_PER_VERTEX_DATA, 0 }
     };
     hr = m_TextTech->GetPassByIndex(0)->GetDesc(&passDesc);
     if( SUCCEEDED(hr) )
@@ -395,42 +599,43 @@ int CTwGraphDirect3D10::Init()
     }
 
     // Create depth stencil state object
-    D3D10_DEPTH_STENCILOP_DESC od;
-    od.StencilFunc = D3D10_COMPARISON_ALWAYS;
-    od.StencilFailOp = D3D10_STENCIL_OP_KEEP;
-    od.StencilPassOp = D3D10_STENCIL_OP_KEEP;
-    od.StencilDepthFailOp = D3D10_STENCIL_OP_KEEP;
-    D3D10_DEPTH_STENCIL_DESC dsd;
+    D3D11_DEPTH_STENCILOP_DESC od;
+    od.StencilFunc = D3D11_COMPARISON_ALWAYS;
+    od.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    od.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+    od.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+    D3D11_DEPTH_STENCIL_DESC dsd;
     dsd.DepthEnable = FALSE;
-    dsd.DepthWriteMask = D3D10_DEPTH_WRITE_MASK_ZERO;
-    dsd.DepthFunc = D3D10_COMPARISON_ALWAYS;
+    dsd.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+    dsd.DepthFunc = D3D11_COMPARISON_ALWAYS;
     dsd.StencilEnable = FALSE;
-    dsd.StencilReadMask = D3D10_DEFAULT_STENCIL_READ_MASK;
-    dsd.StencilWriteMask = D3D10_DEFAULT_STENCIL_WRITE_MASK;
+    dsd.StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK;
+    dsd.StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK;
     dsd.FrontFace = od;
     dsd.BackFace = od;
     m_D3DDev->CreateDepthStencilState(&dsd, &m_DepthStencilState);
 
     // Create blend state object
-    D3D10_BLEND_DESC bsd;
+    D3D11_BLEND_DESC bsd;
     bsd.AlphaToCoverageEnable = FALSE;
     for(int i=0; i<8; ++i)
     {
-        bsd.BlendEnable[i] = TRUE;
-        bsd.RenderTargetWriteMask[i] = D3D10_COLOR_WRITE_ENABLE_ALL;
+        bsd.RenderTarget[i].BlendEnable = TRUE;
+        bsd.RenderTarget[i].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+        bsd.RenderTarget[i].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+        bsd.RenderTarget[i].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+        bsd.RenderTarget[i].BlendOp =  D3D11_BLEND_OP_ADD;
+        bsd.RenderTarget[i].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+        bsd.RenderTarget[i].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+        bsd.RenderTarget[i].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+
     }
-    bsd.SrcBlend = D3D10_BLEND_SRC_ALPHA;
-    bsd.DestBlend = D3D10_BLEND_INV_SRC_ALPHA;
-    bsd.BlendOp =  D3D10_BLEND_OP_ADD;
-    bsd.SrcBlendAlpha = D3D10_BLEND_SRC_ALPHA;
-    bsd.DestBlendAlpha = D3D10_BLEND_INV_SRC_ALPHA;
-    bsd.BlendOpAlpha = D3D10_BLEND_OP_ADD;
     m_D3DDev->CreateBlendState(&bsd, &m_BlendState);
 
     // Create rasterizer state object
-    D3D10_RASTERIZER_DESC rd;
-    rd.FillMode = D3D10_FILL_SOLID;
-    rd.CullMode = D3D10_CULL_NONE;
+    D3D11_RASTERIZER_DESC rd;
+    rd.FillMode = D3D11_FILL_SOLID;
+    rd.CullMode = D3D11_CULL_NONE;
     rd.FrontCounterClockwise = true;
     rd.DepthBias = false;
     rd.DepthBiasClamp = 0;
@@ -445,14 +650,14 @@ int CTwGraphDirect3D10::Init()
     m_D3DDev->CreateRasterizerState(&rd, &m_RasterStateAntialiased);
     rd.AntialiasedLineEnable = false;
 
-    rd.CullMode = D3D10_CULL_BACK;
+    rd.CullMode = D3D11_CULL_BACK;
     m_D3DDev->CreateRasterizerState(&rd, &m_RasterStateCullCW);
 
-    rd.CullMode = D3D10_CULL_FRONT;
+    rd.CullMode = D3D11_CULL_FRONT;
     m_D3DDev->CreateRasterizerState(&rd, &m_RasterStateCullCCW);
 
-    D3D10_RECT rect = {0, 0, 16000, 16000};
-    m_D3DDev->RSSetScissorRects(1, &rect);    
+    D3D11_RECT rect = {0, 0, 16000, 16000};
+    m_D3DContext->RSSetScissorRects(1, &rect);    
     
     // Get effect globals
     if( m_Effect->GetVariableByName("Font") )
@@ -470,7 +675,7 @@ int CTwGraphDirect3D10::Init()
 
 //  ---------------------------------------------------------------------------
 
-int CTwGraphDirect3D10::Shut()
+int CTwGraphDirect3D11::Shut()
 {
     assert(m_Drawing==false);
 
@@ -580,7 +785,7 @@ int CTwGraphDirect3D10::Shut()
         m_D3DDev = NULL;
     }
 
-    // Unload D3D10
+    // Unload D3D11
     UnloadDirect3D10(); // this is not a problem if it cannot be unloaded
 
     return 1;
@@ -588,7 +793,7 @@ int CTwGraphDirect3D10::Shut()
 
 //  ---------------------------------------------------------------------------
 
-void CTwGraphDirect3D10::BeginDraw(int _WndWidth, int _WndHeight)
+void CTwGraphDirect3D11::BeginDraw(int _WndWidth, int _WndHeight)
 {
     assert(m_Drawing==false && _WndWidth>0 && _WndHeight>0);
     m_Drawing = true;
@@ -601,30 +806,30 @@ void CTwGraphDirect3D10::BeginDraw(int _WndWidth, int _WndHeight)
     m_State->Save();
 
     // Setup the viewport
-    D3D10_VIEWPORT vp;
-    vp.Width = _WndWidth;
-    vp.Height = _WndHeight;
+    D3D11_VIEWPORT vp;
+    vp.Width = (FLOAT)_WndWidth;
+    vp.Height = (FLOAT)_WndHeight;
     vp.MinDepth = 0.0f;
     vp.MaxDepth = 1.0f;
     vp.TopLeftX = 0;
     vp.TopLeftY = 0;
-    m_D3DDev->RSSetViewports(1, &vp);
-    *static_cast<D3D10_VIEWPORT *>(m_ViewportInit) = vp;
+    m_D3DContext->RSSetViewports(1, &vp);
+    *static_cast<D3D11_VIEWPORT *>(m_ViewportInit) = vp;
 
-    m_D3DDev->RSSetState(m_RasterState);
+    m_D3DContext->RSSetState(m_RasterState);
 
-    m_D3DDev->OMSetDepthStencilState(m_DepthStencilState, 0);
+    m_D3DContext->OMSetDepthStencilState(m_DepthStencilState, 0);
     float blendFactors[4] = { 1, 1, 1, 1 };
-    m_D3DDev->OMSetBlendState(m_BlendState, blendFactors, 0xffffffff);
+    m_D3DContext->OMSetBlendState(m_BlendState, blendFactors, 0xffffffff);
 }
 
 //  ---------------------------------------------------------------------------
 
-void CTwGraphDirect3D10::EndDraw()
+void CTwGraphDirect3D11::EndDraw()
 {
-    m_D3DDev->RSSetState(NULL);
-    m_D3DDev->OMSetDepthStencilState(NULL, 0);
-    m_D3DDev->OMSetBlendState(NULL, NULL, 0xffffffff);
+    m_D3DContext->RSSetState(NULL);
+    m_D3DContext->OMSetDepthStencilState(NULL, 0);
+    m_D3DContext->OMSetBlendState(NULL, NULL, 0xffffffff);
 
     assert(m_Drawing==true);
     m_Drawing = false;
@@ -635,15 +840,16 @@ void CTwGraphDirect3D10::EndDraw()
 
 //  ---------------------------------------------------------------------------
 
-bool CTwGraphDirect3D10::IsDrawing()
+bool CTwGraphDirect3D11::IsDrawing()
 {
     return m_Drawing;
 }
 
 //  ---------------------------------------------------------------------------
 
-void CTwGraphDirect3D10::Restore()
+void CTwGraphDirect3D11::Restore()
 {
+/*
     if( m_State )
     {
         if( m_State->m_StateBlock )
@@ -653,7 +859,7 @@ void CTwGraphDirect3D10::Restore()
             m_State->m_StateBlock = NULL;
         }
     }
-
+*/
     UnbindFont(m_D3DDev, m_FontD3DResVar, m_FontD3DTexRV);
     m_FontD3DTexRV = NULL;
     
@@ -680,7 +886,7 @@ static inline color32 ToR8G8B8A8(color32 col)
 
 //  ---------------------------------------------------------------------------
 
-void CTwGraphDirect3D10::DrawLine(int _X0, int _Y0, int _X1, int _Y1, color32 _Color0, color32 _Color1, bool _AntiAliased)
+void CTwGraphDirect3D11::DrawLine(int _X0, int _Y0, int _X1, int _Y1, color32 _Color0, color32 _Color1, bool _AntiAliased)
 {
     assert(m_Drawing==true);
 
@@ -689,10 +895,11 @@ void CTwGraphDirect3D10::DrawLine(int _X0, int _Y0, int _X1, int _Y1, color32 _C
     float x1 = ToNormScreenX(_X1 + m_OffsetX, m_WndWidth);
     float y1 = ToNormScreenY(_Y1 + m_OffsetY, m_WndHeight);
  
-    CLineRectVtx *vertices = NULL;
-    HRESULT hr = m_LineVertexBuffer->Map(D3D10_MAP_WRITE_DISCARD, 0, (void **)&vertices);
+    D3D11_MAPPED_SUBRESOURCE r;
+    HRESULT hr = m_D3DContext->Map(m_LineVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &r);
     if( SUCCEEDED(hr) )
     {
+        CLineRectVtx *vertices = (CLineRectVtx *)r.pData;
         // Fill vertex buffer
         vertices[0].m_Pos[0] = x0;
         vertices[0].m_Pos[1] = y0;
@@ -703,10 +910,10 @@ void CTwGraphDirect3D10::DrawLine(int _X0, int _Y0, int _X1, int _Y1, color32 _C
         vertices[1].m_Pos[2] = 0;
         vertices[1].m_Color = ToR8G8B8A8(_Color1);
 
-        m_LineVertexBuffer->Unmap();
+        m_D3DContext->Unmap(m_LineVertexBuffer, 0);
 
         if( _AntiAliased )
-            m_D3DDev->RSSetState(m_RasterStateAntialiased);
+            m_D3DContext->RSSetState(m_RasterStateAntialiased);
 
         // Reset shader globals
         float offsetVec[4] = { 0, 0, 0, 0 };
@@ -717,33 +924,33 @@ void CTwGraphDirect3D10::DrawLine(int _X0, int _Y0, int _X1, int _Y1, color32 _C
             m_CstColorVar->SetFloatVector(colorVec);
 
         // Set the input layout
-        m_D3DDev->IASetInputLayout(m_LineRectVertexLayout);
+        m_D3DContext->IASetInputLayout(m_LineRectVertexLayout);
 
         // Set vertex buffer
         UINT stride = sizeof(CLineRectVtx);
         UINT offset = 0;
-        m_D3DDev->IASetVertexBuffers(0, 1, &m_LineVertexBuffer, &stride, &offset);
+        m_D3DContext->IASetVertexBuffers(0, 1, &m_LineVertexBuffer, &stride, &offset);
 
         // Set primitive topology
-        m_D3DDev->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_LINELIST);
+        m_D3DContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
 
         // Render the line
-        D3D10_TECHNIQUE_DESC techDesc;
+        D3DX11_TECHNIQUE_DESC techDesc;
         m_LineRectTech->GetDesc(&techDesc);
         for(UINT p=0; p<techDesc.Passes; ++p)
         {
-            m_LineRectTech->GetPassByIndex(p)->Apply(0);
-            m_D3DDev->Draw(2, 0);
+            m_LineRectTech->GetPassByIndex(p)->Apply(0, m_D3DContext);
+            m_D3DContext->Draw(2, 0);
         }
 
         if( _AntiAliased )
-            m_D3DDev->RSSetState(m_RasterState); // restore default raster state
+            m_D3DContext->RSSetState(m_RasterState); // restore default raster state
     }
 }
 
 //  ---------------------------------------------------------------------------
 
-void CTwGraphDirect3D10::DrawRect(int _X0, int _Y0, int _X1, int _Y1, color32 _Color00, color32 _Color10, color32 _Color01, color32 _Color11)
+void CTwGraphDirect3D11::DrawRect(int _X0, int _Y0, int _X1, int _Y1, color32 _Color00, color32 _Color10, color32 _Color01, color32 _Color11)
 {
     assert(m_Drawing==true);
 
@@ -762,10 +969,12 @@ void CTwGraphDirect3D10::DrawRect(int _X0, int _Y0, int _X1, int _Y1, color32 _C
     float x1 = ToNormScreenX(_X1 + m_OffsetX, m_WndWidth);
     float y1 = ToNormScreenY(_Y1 + m_OffsetY, m_WndHeight);
  
-    CLineRectVtx *vertices = NULL;
-    HRESULT hr = m_RectVertexBuffer->Map(D3D10_MAP_WRITE_DISCARD, 0, (void **)&vertices);
+    D3D11_MAPPED_SUBRESOURCE r;
+    HRESULT hr = m_D3DContext->Map(m_RectVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &r);
     if( SUCCEEDED(hr) )
     {
+        CLineRectVtx *vertices = (CLineRectVtx *)r.pData;
+
         // Fill vertex buffer
         vertices[0].m_Pos[0] = x0;
         vertices[0].m_Pos[1] = y0;
@@ -784,7 +993,7 @@ void CTwGraphDirect3D10::DrawRect(int _X0, int _Y0, int _X1, int _Y1, color32 _C
         vertices[3].m_Pos[2] = 0;
         vertices[3].m_Color = ToR8G8B8A8(_Color11);
 
-        m_RectVertexBuffer->Unmap();
+        m_D3DContext->Unmap(m_RectVertexBuffer, 0);
 
         // Reset shader globals
         float offsetVec[4] = { 0, 0, 0, 0 };
@@ -795,30 +1004,30 @@ void CTwGraphDirect3D10::DrawRect(int _X0, int _Y0, int _X1, int _Y1, color32 _C
             m_CstColorVar->SetFloatVector(colorVec);
 
         // Set the input layout
-        m_D3DDev->IASetInputLayout(m_LineRectVertexLayout);
+        m_D3DContext->IASetInputLayout(m_LineRectVertexLayout);
 
         // Set vertex buffer
         UINT stride = sizeof(CLineRectVtx);
         UINT offset = 0;
-        m_D3DDev->IASetVertexBuffers(0, 1, &m_RectVertexBuffer, &stride, &offset);
+        m_D3DContext->IASetVertexBuffers(0, 1, &m_RectVertexBuffer, &stride, &offset);
 
         // Set primitive topology
-        m_D3DDev->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+        m_D3DContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
         // Render the rect
-        D3D10_TECHNIQUE_DESC techDesc;
+        D3DX11_TECHNIQUE_DESC techDesc;
         m_LineRectTech->GetDesc(&techDesc);
         for(UINT p=0; p<techDesc.Passes; ++p)
         {
-            m_LineRectTech->GetPassByIndex(p)->Apply(0);
-            m_D3DDev->Draw(4, 0);
+            m_LineRectTech->GetPassByIndex(p)->Apply(0, m_D3DContext);
+            m_D3DContext->Draw(4, 0);
         }
     }
 }
 
 //  ---------------------------------------------------------------------------
 
-void *CTwGraphDirect3D10::NewTextObj()
+void *CTwGraphDirect3D11::NewTextObj()
 {
     CTextObj *textObj = new CTextObj;
     memset(textObj, 0, sizeof(CTextObj));
@@ -827,7 +1036,7 @@ void *CTwGraphDirect3D10::NewTextObj()
 
 //  ---------------------------------------------------------------------------
 
-void CTwGraphDirect3D10::DeleteTextObj(void *_TextObj)
+void CTwGraphDirect3D11::DeleteTextObj(void *_TextObj)
 {
     assert(_TextObj!=NULL);
     CTextObj *textObj = static_cast<CTextObj *>(_TextObj);
@@ -841,7 +1050,7 @@ void CTwGraphDirect3D10::DeleteTextObj(void *_TextObj)
 
 //  ---------------------------------------------------------------------------
 
-void CTwGraphDirect3D10::BuildText(void *_TextObj, const std::string *_TextLines, color32 *_LineColors, color32 *_LineBgColors, int _NbLines, const CTexFont *_Font, int _Sep, int _BgWidth)
+void CTwGraphDirect3D11::BuildText(void *_TextObj, const std::string *_TextLines, color32 *_LineColors, color32 *_LineBgColors, int _NbLines, const CTexFont *_Font, int _Sep, int _BgWidth)
 {
     assert(m_Drawing==true);
     assert(_TextObj!=NULL);
@@ -879,17 +1088,20 @@ void CTwGraphDirect3D10::BuildText(void *_TextObj, const std::string *_TextLines
                 textObj->m_TextVertexBuffer = NULL;
             }
             textObj->m_TextVertexBufferSize = nbTextVerts + 6*256; // add a reserve of 256 characters
-            D3D10_BUFFER_DESC bd;
-            bd.Usage = D3D10_USAGE_DYNAMIC;
+            D3D11_BUFFER_DESC bd;
+            bd.Usage = D3D11_USAGE_DYNAMIC;
             bd.ByteWidth = textObj->m_TextVertexBufferSize * sizeof(CTextVtx);
-            bd.BindFlags = D3D10_BIND_VERTEX_BUFFER;
-            bd.CPUAccessFlags = D3D10_CPU_ACCESS_WRITE;
+            bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+            bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
             bd.MiscFlags = 0;
             m_D3DDev->CreateBuffer(&bd, NULL, &textObj->m_TextVertexBuffer);
         }
 
-        if( textObj->m_TextVertexBuffer!=NULL )
-            textObj->m_TextVertexBuffer->Map(D3D10_MAP_WRITE_DISCARD, 0, (void **)&textVerts);
+        if( textObj->m_TextVertexBuffer!=NULL ) {
+          D3D11_MAPPED_SUBRESOURCE r;
+          m_D3DContext->Map(textObj->m_TextVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &r);
+          textVerts = (CTextVtx *)r.pData;
+        }
     }
 
     // (re)create bg vertex buffer if needed, and map it
@@ -905,17 +1117,20 @@ void CTwGraphDirect3D10::BuildText(void *_TextObj, const std::string *_TextLines
                 textObj->m_BgVertexBuffer = NULL;
             }
             textObj->m_BgVertexBufferSize = nbBgVerts + 6*32; // add a reserve of 32 rects
-            D3D10_BUFFER_DESC bd;
-            bd.Usage = D3D10_USAGE_DYNAMIC;
+            D3D11_BUFFER_DESC bd;
+            bd.Usage = D3D11_USAGE_DYNAMIC;
             bd.ByteWidth = textObj->m_BgVertexBufferSize * sizeof(CLineRectVtx);
-            bd.BindFlags = D3D10_BIND_VERTEX_BUFFER;
-            bd.CPUAccessFlags = D3D10_CPU_ACCESS_WRITE;
+            bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+            bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
             bd.MiscFlags = 0;
             m_D3DDev->CreateBuffer(&bd, NULL, &textObj->m_BgVertexBuffer);
         }
 
-        if( textObj->m_BgVertexBuffer!=NULL )
-            textObj->m_BgVertexBuffer->Map(D3D10_MAP_WRITE_DISCARD, 0, (void **)&bgVerts);
+        if( textObj->m_BgVertexBuffer!=NULL ) {
+          D3D11_MAPPED_SUBRESOURCE r;
+          m_D3DContext->Map(textObj->m_BgVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &r);
+          bgVerts = (CLineRectVtx *)r.pData;
+        }
     }
 
     int x, x1, y, y1, i, len;
@@ -1034,14 +1249,14 @@ void CTwGraphDirect3D10::BuildText(void *_TextObj, const std::string *_TextLines
     textObj->m_NbBgVerts = nbBgVerts;
 
     if( textVerts!=NULL )
-        textObj->m_TextVertexBuffer->Unmap();
+        m_D3DContext->Unmap(textObj->m_TextVertexBuffer, 0);
     if( bgVerts!=NULL )
-        textObj->m_BgVertexBuffer->Unmap();
+        m_D3DContext->Unmap(textObj->m_BgVertexBuffer, 0);
 }
 
 //  ---------------------------------------------------------------------------
 
-void CTwGraphDirect3D10::DrawText(void *_TextObj, int _X, int _Y, color32 _Color, color32 _BgColor)
+void CTwGraphDirect3D11::DrawText(void *_TextObj, int _X, int _Y, color32 _Color, color32 _BgColor)
 {
     assert(m_Drawing==true);
     assert(_TextObj!=NULL);
@@ -1064,28 +1279,28 @@ void CTwGraphDirect3D10::DrawText(void *_TextObj, int _X, int _Y, color32 _Color
             m_CstColorVar->SetFloatVector(color);
 
         // Set the input layout
-        m_D3DDev->IASetInputLayout(m_LineRectVertexLayout);
+        m_D3DContext->IASetInputLayout(m_LineRectVertexLayout);
 
         // Set vertex buffer
         UINT stride = sizeof(CLineRectVtx);
         UINT offset = 0;
-        m_D3DDev->IASetVertexBuffers(0, 1, &textObj->m_BgVertexBuffer, &stride, &offset);
+        m_D3DContext->IASetVertexBuffers(0, 1, &textObj->m_BgVertexBuffer, &stride, &offset);
 
         // Set primitive topology
-        m_D3DDev->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        m_D3DContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
         // Render the bg rectangles
-        ID3D10EffectTechnique *tech;
+        ID3DX11EffectTechnique *tech;
         if( _BgColor!=0 || !textObj->m_LineBgColors ) // use a constant bg color
             tech = m_LineRectCstColorTech;
         else // use vertex buffer colors
             tech = m_LineRectTech;
-        D3D10_TECHNIQUE_DESC techDesc;
+        D3DX11_TECHNIQUE_DESC techDesc;
         tech->GetDesc(&techDesc);
         for( UINT p=0; p<techDesc.Passes; ++p )
         {
-            tech->GetPassByIndex(p)->Apply(0);
-            m_D3DDev->Draw(textObj->m_NbBgVerts, 0);
+            tech->GetPassByIndex(p)->Apply(0, m_D3DContext);
+            m_D3DContext->Draw(textObj->m_NbBgVerts, 0);
         }
     }
 
@@ -1098,40 +1313,40 @@ void CTwGraphDirect3D10::DrawText(void *_TextObj, int _X, int _Y, color32 _Color
             m_CstColorVar->SetFloatVector(color);
 
         // Set the input layout
-        m_D3DDev->IASetInputLayout(m_TextVertexLayout);
+        m_D3DContext->IASetInputLayout(m_TextVertexLayout);
 
         // Set vertex buffer
         UINT stride = sizeof(CTextVtx);
         UINT offset = 0;
-        m_D3DDev->IASetVertexBuffers(0, 1, &textObj->m_TextVertexBuffer, &stride, &offset);
+        m_D3DContext->IASetVertexBuffers(0, 1, &textObj->m_TextVertexBuffer, &stride, &offset);
 
         // Set primitive topology
-        m_D3DDev->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        m_D3DContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
         // Render the bg rectangles
-        ID3D10EffectTechnique *tech;
+        ID3DX11EffectTechnique *tech;
         if( _Color!=0 || !textObj->m_LineColors ) // use a constant color
             tech = m_TextCstColorTech;
         else // use vertex buffer colors
             tech = m_TextTech;
-        D3D10_TECHNIQUE_DESC techDesc;
+        D3DX11_TECHNIQUE_DESC techDesc;
         tech->GetDesc(&techDesc);
         for( UINT p=0; p<techDesc.Passes; ++p )
         {
-            tech->GetPassByIndex(p)->Apply(0);
-            m_D3DDev->Draw(textObj->m_NbTextVerts, 0);
+            tech->GetPassByIndex(p)->Apply(0, m_D3DContext);
+            m_D3DContext->Draw(textObj->m_NbTextVerts, 0);
         }
     }
 }
 
 //  ---------------------------------------------------------------------------
 
-void CTwGraphDirect3D10::ChangeViewport(int _X0, int _Y0, int _Width, int _Height, int _OffsetX, int _OffsetY)
+void CTwGraphDirect3D11::ChangeViewport(int _X0, int _Y0, int _Width, int _Height, int _OffsetX, int _OffsetY)
 {
     if( _Width>0 && _Height>0 )
     {
 	    /* viewport changes screen coordinates, use scissor instead
-        D3D10_VIEWPORT vp;
+        D3D11_VIEWPORT vp;
         vp.TopLeftX = _X0;
         vp.TopLeftY = _Y0;
         vp.Width = _Width;
@@ -1141,12 +1356,12 @@ void CTwGraphDirect3D10::ChangeViewport(int _X0, int _Y0, int _Width, int _Heigh
         m_D3DDev->RSSetViewports(1, &vp);
         */
         
-        D3D10_RECT rect;
+        D3D11_RECT rect;
         rect.left = _X0;
         rect.right = _X0 + _Width - 1;
         rect.top = _Y0;
         rect.bottom = _Y0 + _Height - 1;
-        m_D3DDev->RSSetScissorRects(1, &rect);        
+        m_D3DContext->RSSetScissorRects(1, &rect);
 
         m_OffsetX = _X0 + _OffsetX;
         m_OffsetY = _Y0 + _OffsetY;
@@ -1155,18 +1370,18 @@ void CTwGraphDirect3D10::ChangeViewport(int _X0, int _Y0, int _Width, int _Heigh
 
 //  ---------------------------------------------------------------------------
 
-void CTwGraphDirect3D10::RestoreViewport()
+void CTwGraphDirect3D11::RestoreViewport()
 {
-    //m_D3DDev->RSSetViewports(1, static_cast<D3D10_VIEWPORT *>(m_ViewportInit));
-    D3D10_RECT rect = {0, 0, 16000, 16000};
-    m_D3DDev->RSSetScissorRects(1, &rect);
+    //m_D3DDev->RSSetViewports(1, static_cast<D3D11_VIEWPORT *>(m_ViewportInit));
+    D3D11_RECT rect = {0, 0, 16000, 16000};
+    m_D3DContext->RSSetScissorRects(1, &rect);
         
     m_OffsetX = m_OffsetY = 0;
 }
 
 //  ---------------------------------------------------------------------------
 
-void CTwGraphDirect3D10::DrawTriangles(int _NumTriangles, int *_Vertices, color32 *_Colors, Cull _CullMode)
+void CTwGraphDirect3D11::DrawTriangles(int _NumTriangles, int *_Vertices, color32 *_Colors, Cull _CullMode)
 {
     assert(m_Drawing==true);
 
@@ -1186,10 +1401,10 @@ void CTwGraphDirect3D10::DrawTriangles(int _NumTriangles, int *_Vertices, color3
     if( m_TrianglesVertexBuffer==NULL )
     {
         // Create triangles vertex buffer
-        D3D10_BUFFER_DESC bd;
-        bd.Usage = D3D10_USAGE_DYNAMIC;
-        bd.BindFlags = D3D10_BIND_VERTEX_BUFFER;
-        bd.CPUAccessFlags = D3D10_CPU_ACCESS_WRITE;
+        D3D11_BUFFER_DESC bd;
+        bd.Usage = D3D11_USAGE_DYNAMIC;
+        bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+        bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
         bd.MiscFlags = 0;
         bd.ByteWidth = 3*_NumTriangles * sizeof(CLineRectVtx);
         HRESULT hr = m_D3DDev->CreateBuffer(&bd, NULL, &m_TrianglesVertexBuffer);
@@ -1206,9 +1421,11 @@ void CTwGraphDirect3D10::DrawTriangles(int _NumTriangles, int *_Vertices, color3
     assert( m_TrianglesVertexBuffer!=NULL );
 
     CLineRectVtx *vertices = NULL;
-    HRESULT hr = m_TrianglesVertexBuffer->Map(D3D10_MAP_WRITE_DISCARD, 0, (void **)&vertices);
+    D3D11_MAPPED_SUBRESOURCE r;
+    HRESULT hr = m_D3DContext->Map(m_TrianglesVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &r);
     if( SUCCEEDED(hr) )
     {
+        vertices = (CLineRectVtx *)r.pData;
         // Fill vertex buffer
         for( int i=0; i<3*_NumTriangles; ++ i )
         {
@@ -1217,7 +1434,7 @@ void CTwGraphDirect3D10::DrawTriangles(int _NumTriangles, int *_Vertices, color3
             vertices[i].m_Pos[2] = 0;
             vertices[i].m_Color = ToR8G8B8A8(_Colors[i]);
         }
-        m_TrianglesVertexBuffer->Unmap();
+        m_D3DContext->Unmap(m_TrianglesVertexBuffer, 0);
 
         // Reset shader globals
         float offsetVec[4] = { 0, 0, 0, 0 };
@@ -1228,32 +1445,32 @@ void CTwGraphDirect3D10::DrawTriangles(int _NumTriangles, int *_Vertices, color3
             m_CstColorVar->SetFloatVector(colorVec);
 
         // Set the input layout
-        m_D3DDev->IASetInputLayout(m_LineRectVertexLayout);
+        m_D3DContext->IASetInputLayout(m_LineRectVertexLayout);
 
         // Set vertex buffer
         UINT stride = sizeof(CLineRectVtx);
         UINT offset = 0;
-        m_D3DDev->IASetVertexBuffers(0, 1, &m_TrianglesVertexBuffer, &stride, &offset);
+        m_D3DContext->IASetVertexBuffers(0, 1, &m_TrianglesVertexBuffer, &stride, &offset);
 
         // Set primitive topology
-        m_D3DDev->IASetPrimitiveTopology(D3D10_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        m_D3DContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
         if( _CullMode==CULL_CW )
-            m_D3DDev->RSSetState(m_RasterStateCullCW);
+            m_D3DContext->RSSetState(m_RasterStateCullCW);
         else if( _CullMode==CULL_CCW )
-            m_D3DDev->RSSetState(m_RasterStateCullCCW);
+            m_D3DContext->RSSetState(m_RasterStateCullCCW);
 
         // Render the rect
-        D3D10_TECHNIQUE_DESC techDesc;
+        D3DX11_TECHNIQUE_DESC techDesc;
         m_LineRectTech->GetDesc(&techDesc);
         for(UINT p=0; p<techDesc.Passes; ++p)
         {
-            m_LineRectTech->GetPassByIndex(p)->Apply(0);
-            m_D3DDev->Draw(3*_NumTriangles, 0);
+            m_LineRectTech->GetPassByIndex(p)->Apply(0, m_D3DContext);
+            m_D3DContext->Draw(3*_NumTriangles, 0);
         }
 
         if( _CullMode==CULL_CW || _CullMode==CULL_CCW )
-            m_D3DDev->RSSetState(m_RasterState); // restore default raster state
+            m_D3DContext->RSSetState(m_RasterState); // restore default raster state
     }
 }
 

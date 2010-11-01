@@ -80,6 +80,7 @@ struct CTwMgr
 {
     ETwGraphAPI         m_GraphAPI;
     void *              m_Device;
+    void *              m_Context;
     class ITwGraph *    m_Graph;
     int                 m_WndWidth;
     int                 m_WndHeight;
@@ -131,7 +132,11 @@ struct CTwMgr
     //bool              IsProcessing() const            { return m_Processing);
     //void              SetProcessing(bool processing)  { m_Processing = processing; }
 
-                        CTwMgr(ETwGraphAPI _GraphAPI, void *_Device);
+#ifdef ANT_TW_SUPPORT_DX11
+    CTwMgr(ETwGraphAPI _GraphAPI, void *_Device, void *_Context);
+#else
+    CTwMgr(ETwGraphAPI _GraphAPI, void *_Device);
+#endif
                         ~CTwMgr();
 
     struct CStructMember

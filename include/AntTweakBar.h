@@ -182,10 +182,15 @@ typedef enum ETwGraphAPI
 {
     TW_OPENGL           = 1,
     TW_DIRECT3D9        = 2,
-    TW_DIRECT3D10       = 3
+    TW_DIRECT3D10       = 3,
+    TW_DIRECT3D11       = 3
 } TwGraphAPI;
 
+#ifdef ANT_TW_SUPPORT_DX11
+TW_API int      TW_CALL TwInit(TwGraphAPI graphAPI, void *device, void *context);
+#else
 TW_API int      TW_CALL TwInit(TwGraphAPI graphAPI, void *device);
+#endif
 TW_API int      TW_CALL TwTerminate();
 
 TW_API int      TW_CALL TwDraw();

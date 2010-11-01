@@ -17,8 +17,15 @@
 #include "TwFonts.h"
 #include "TwOpenGL.h"
 #ifdef ANT_WINDOWS
+#ifdef ANT_TW_SUPPORT_DX9
 #   include "TwDirect3D9.h"
+#endif
+#ifdef ANT_TW_SUPPORT_DX10
 #   include "TwDirect3D10.h"
+#endif
+#ifdef ANT_TW_SUPPORT_DX11
+#   include "TwDirect3D11.h"
+#endif
 #   include "resource.h"
 #   ifdef _DEBUG
 #       include <crtdbg.h>
@@ -1667,6 +1674,8 @@ static int TwCreateGraph(ETwGraphAPI _GraphAPI)
     case TW_OPENGL:
         g_TwMgr->m_Graph = new CTwGraphOpenGL;
         break;
+#ifdef ANT_WINDOWS
+#ifdef ANT_TW_SUPPORT_DX9
     case TW_DIRECT3D9:
         #ifdef ANT_WINDOWS
             if( g_TwMgr->m_Device!=NULL )
@@ -1678,8 +1687,9 @@ static int TwCreateGraph(ETwGraphAPI _GraphAPI)
             }
         #endif // ANT_WINDOWS
         break;
+#endif
+#ifdef ANT_TW_SUPPORT_DX10
     case TW_DIRECT3D10:
-        #ifdef ANT_WINDOWS
             if( g_TwMgr->m_Device!=NULL )
                 g_TwMgr->m_Graph = new CTwGraphDirect3D10;
             else
@@ -1687,9 +1697,22 @@ static int TwCreateGraph(ETwGraphAPI _GraphAPI)
                 g_TwMgr->SetLastError(g_ErrBadDevice);
                 return 0;
             }
-        #endif // ANT_WINDOWS
         break;
+#endif
+#ifdef ANT_TW_SUPPORT_DX11
+    case TW_DIRECT3D11:
+      if( g_TwMgr->m_Device!=NULL )
+        g_TwMgr->m_Graph = new CTwGraphDirect3D11;
+      else
+      {
+        g_TwMgr->SetLastError(g_ErrBadDevice);
+        return 0;
+      }
+      break;
+#endif
     }
+
+#endif // ANT_WINDOWS
 
     if( g_TwMgr->m_Graph==NULL )
     {
@@ -1768,7 +1791,12 @@ static inline int TwEndProcessing()
 
 //  ---------------------------------------------------------------------------
 
-int ANT_CALL TwInit(ETwGraphAPI _GraphAPI, void *_Device)
+
+#ifdef ANT_TW_SUPPORT_DX11
+int ANT_CALL TW_CALL TwInit(TwGraphAPI _GraphAPI, void *_Device, void *_Context)
+#else
+int ANT_CALL TW_CALL TwInit(TwGraphAPI _GraphAPI, void *_Device)
+#endif
 {
 #if defined(_DEBUG) && defined(ANT_WINDOWS)
     _CrtSetDbgFlag(_CRTDBG_LEAK_CHECK_DF|_CrtSetDbgFlag(_CRTDBG_LEAK_CHECK_DF));
@@ -1780,7 +1808,11 @@ int ANT_CALL TwInit(ETwGraphAPI _GraphAPI, void *_Device)
         return 0;
     }
 
+#ifdef ANT_TW_SUPPORT_DX11
+    g_TwMgr = new CTwMgr(_GraphAPI, _Device, _Context);
+#else
     g_TwMgr = new CTwMgr(_GraphAPI, _Device);
+#endif
 
     TwGenerateDefaultFonts();
     g_TwMgr->m_CurrentFont = g_DefaultNormalFont;
@@ -2023,10 +2055,17 @@ int ANT_CALL TwWindowSize(int _Width, int _Height)
 
 //  ---------------------------------------------------------------------------
 
+#ifdef ANT_TW_SUPPORT_DX11
+CTwMgr::CTwMgr(ETwGraphAPI _GraphAPI, void *_Device, void *_Context)
+#else
 CTwMgr::CTwMgr(ETwGraphAPI _GraphAPI, void *_Device)
+#endif
 {
     m_GraphAPI = _GraphAPI;
     m_Device = _Device;
+#ifdef ANT_TW_SUPPORT_DX11
+    m_Context = _Context;
+#endif
     m_LastError = NULL;
     m_CurrentDbgFile = "";
     m_CurrentDbgLine = 0;

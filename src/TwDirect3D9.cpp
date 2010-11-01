@@ -11,6 +11,9 @@
 
 
 #include "TwPrecomp.h"
+
+#ifdef ANT_TW_SUPPORT_DX9
+
 #include "TwDirect3D9.h"
 #include "TwMgr.h"
 
@@ -613,3 +616,4 @@ void CTwGraphDirect3D9::DrawTriangles(int _NumTriangles, int *_Vertices, color32
 }
 
 //  ---------------------------------------------------------------------------
+#endif // #ifdef ANT_TW_SUPPORT_DX9

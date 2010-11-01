@@ -1,5 +1,5 @@
-Debug/
-Release/
+src/debug/
+src/release/
 ipch/
 *.idb
 *.url

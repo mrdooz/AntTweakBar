@@ -17,7 +17,7 @@
 
 #include "TwGraph.h"
 
-
+#ifdef ANT_TW_SUPPORT_DX9
 //  ---------------------------------------------------------------------------
 
 class CTwGraphDirect3D9 : public ITwGraph
@@ -86,6 +86,7 @@ protected:
 };
 
 //  ---------------------------------------------------------------------------
+#endif // #ifdef ANT_TW_SUPPORT_DX9
 
 
 #endif // !defined ANT_TW_DIRECT3D9_INCLUDED

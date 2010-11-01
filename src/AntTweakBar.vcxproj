@@ -143,7 +143,7 @@
       <TypeLibraryName>$(OutDir)AntTweakBar.tlb</TypeLibraryName>
     </Midl>
     <PostBuildEvent>
-      <Command>if exist ..\examples\debug  xcopy /y /f ..\lib\debug\AntTweakBar.dll ..\examples\debug\.</Command>
+      <Command>rem if exist ..\examples\debug  xcopy /y /f ..\lib\debug\AntTweakBar.dll ..\examples\debug\.</Command>
     </PostBuildEvent>
     <ResourceCompile>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>

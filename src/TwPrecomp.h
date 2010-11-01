@@ -21,6 +21,12 @@
 #   pragma warning(disable: 4710)   // function not inlined
 #   pragma warning(disable: 4786)   // template name truncated
 #   pragma warning(disable: 4530)   // exceptions not handled
+// these are turned off for the effect stuff
+#   pragma warning(disable: 4100)
+#   pragma warning(disable: 4505)
+#   pragma warning(disable: 4189)
+#   pragma warning(disable: 4127)
+#   pragma warning(disable: 4201)
 #   define _CRT_SECURE_NO_DEPRECATE // visual 8 secure crt warning
 #endif
 
@@ -71,6 +77,7 @@
 #   undef ANT_UNIX
 #elif defined(_WINDOWS) || defined(WIN32) || defined(WIN64) || defined(_WIN32) || defined(_WIN64)
 #   define ANT_WINDOWS
+#   define ANT_TW_SUPPORT_DX11
 #   define WIN32_LEAN_AND_MEAN // Exclude rarely-used stuff from Windows headers
 #   include <windows.h>
 #   include <shellapi.h>
