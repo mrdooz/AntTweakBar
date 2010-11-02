@@ -46,6 +46,7 @@ public:
 protected:
     struct ID3D11Device *       m_D3DDev;
     struct ID3D11DeviceContext *m_D3DContext;
+		D3D_FEATURE_LEVEL					  m_FeatureLevel;
     unsigned int                m_D3DDevInitialRefCount;
     bool                        m_Drawing;
     const CTexFont *            m_FontTex;
