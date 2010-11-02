@@ -182,10 +182,17 @@ struct CComPtrArray
 
 	~CComPtrArray()
 	{
-		for (int i = 0; i < N; ++i)
-			if (_arr[i])
-				_arr[i]->Release();
+    release();
 	}
+
+  void release()
+  {
+    for (int i = 0; i < N; ++i)
+      if (_arr[i]) {
+        _arr[i]->Release();
+        _arr[i] = NULL;
+      }
+  }
 
 	T* _arr[N];
 };
@@ -195,23 +202,32 @@ struct StateBlock
 	StateBlock(const D3DX11_STATE_BLOCK_MASK& mask, ID3D11DeviceContext *context) 
     : _mask(mask)
     , _context(context) 
-    , _vertex_shader(mask)
-    , _hull_shader(mask)
-    , _domain_shader(mask)
-    , _geometry_shader(mask)
-    , _pixel_shader(mask)
-    , _compute_shader(mask)
+    , _vertex_shader(mask, &ID3D11DeviceContext::VSGetSamplers, &ID3D11DeviceContext::VSGetShaderResources, &ID3D11DeviceContext::VSGetConstantBuffers, &ID3D11DeviceContext::VSGetShader, mask.VSSamplers, mask.VSShaderResources, mask.VSConstantBuffers, mask.VSInterfaces)
+    , _hull_shader(mask, &ID3D11DeviceContext::HSGetSamplers, &ID3D11DeviceContext::HSGetShaderResources, &ID3D11DeviceContext::HSGetConstantBuffers, &ID3D11DeviceContext::HSGetShader, mask.HSSamplers, mask.HSShaderResources, mask.HSConstantBuffers, mask.HSInterfaces)
+    , _domain_shader(mask, &ID3D11DeviceContext::DSGetSamplers, &ID3D11DeviceContext::DSGetShaderResources, &ID3D11DeviceContext::DSGetConstantBuffers, &ID3D11DeviceContext::DSGetShader, mask.DSSamplers, mask.DSShaderResources, mask.DSConstantBuffers, mask.DSInterfaces)
+    , _geometry_shader(mask, &ID3D11DeviceContext::GSGetSamplers, &ID3D11DeviceContext::GSGetShaderResources, &ID3D11DeviceContext::GSGetConstantBuffers, &ID3D11DeviceContext::GSGetShader, mask.GSSamplers, mask.GSShaderResources, mask.GSConstantBuffers, mask.GSInterfaces)
+    , _pixel_shader(mask, &ID3D11DeviceContext::PSGetSamplers, &ID3D11DeviceContext::PSGetShaderResources, &ID3D11DeviceContext::PSGetConstantBuffers, &ID3D11DeviceContext::PSGetShader, mask.PSSamplers, mask.PSShaderResources, mask.PSConstantBuffers, mask.PSInterfaces)
+    , _compute_shader(mask, &ID3D11DeviceContext::CSGetSamplers, &ID3D11DeviceContext::CSGetShaderResources, &ID3D11DeviceContext::CSGetConstantBuffers, &ID3D11DeviceContext::CSGetShader, mask.CSSamplers, mask.CSShaderResources, mask.CSConstantBuffers, mask.CSInterfaces)
   {
   }
 
-	void save();
-	void restore();
+  // Capture the current states according to the mask
+  void capture();
 
+  // Apply the captured state
+  void apply();
+
+  // Release all the captured resources
+  void release();
+
+#if 0
 #define MK_SHADER_STATE(prefix, type, name)	\
 	template<class T>\
 	struct prefix ## ShaderStates\
 	{\
-    prefix ## ShaderStates(const D3DX11_STATE_BLOCK_MASK& mask) : _mask(mask) {} \
+    prefix ## ShaderStates(const D3DX11_STATE_BLOCK_MASK& mask) \
+      : _mask(mask), _class_instance_count(D3D11_SHADER_MAX_INTERFACES)\
+    { for (int i = 0; i < D3D11_SHADER_MAX_INTERFACES; ++i) _class_instances[i] = NULL; } \
     void operator=(const prefix ## ShaderStates&);\
 		void save(ID3D11DeviceContext *context)\
 		{\
@@ -225,6 +241,21 @@ struct StateBlock
 			context->prefix ## GetShader(&_shader.p, _class_instances, &_class_instance_count);\
 			/* TODO: store the unordered access view stuff*/  \
 		}\
+    void release() \
+    {\
+      for (int i = 0; i < D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT; ++i) \
+        _samplers[i] = NULL;\
+      for (int i = 0; i < D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT; ++i) \
+        _shader_resources[i] = NULL; \
+      for (int i = 0; i < D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT; ++i) \
+        _shader_constant_buffers[i] = NULL; \
+      _shader = NULL; \
+      for (UINT i = 0; i < D3D11_SHADER_MAX_INTERFACES; ++i) {\
+        if (_class_instances[i]) \
+          _class_instances[i]->Release(); \
+        _class_instances[i] = NULL;\
+      }\
+    }\
 		CComPtr<ID3D11SamplerState> _samplers[D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT];\
 		CComPtr<ID3D11ShaderResourceView> _shader_resources[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT];\
 		CComPtr<ID3D11Buffer> _shader_constant_buffers[D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT];\
@@ -240,6 +271,80 @@ struct StateBlock
 	MK_SHADER_STATE(GS, ID3D11GeometryShader, _geometry_shader);
 	MK_SHADER_STATE(PS, ID3D11PixelShader, _pixel_shader);
 	MK_SHADER_STATE(CS, ID3D11ComputeShader, _compute_shader);
+#endif
+
+  // If I didn't need to be able to debug this, then this bad boy would be a macro :)
+  template<class T>
+  class ShaderStates
+  {
+  public:
+    typedef void (__stdcall ID3D11DeviceContext::*GetSamplers)(UINT, UINT, ID3D11SamplerState**);
+    typedef void (__stdcall ID3D11DeviceContext::*GetShaderResources)(UINT, UINT, ID3D11ShaderResourceView**);
+    typedef void (__stdcall ID3D11DeviceContext::*GetConstantBuffers)(UINT, UINT, ID3D11Buffer**);
+    typedef void (__stdcall ID3D11DeviceContext::*GetShader)(T **, ID3D11ClassInstance **, UINT *);
+
+    ShaderStates(const D3DX11_STATE_BLOCK_MASK &mask, 
+      GetSamplers fn_get_samplers, GetShaderResources fn_get_shader_resources, GetConstantBuffers fn_get_constant_buffers, GetShader fn_get_shader,
+      const BYTE *flag_samplers, const BYTE *flag_shader_resources, const BYTE *flag_constant_buffers, const BYTE *flag_interfaces)
+      : _mask(mask)
+      , _fn_get_samplers(fn_get_samplers), _fn_get_shader_resources(fn_get_shader_resources), _fn_get_constant_buffers(fn_get_constant_buffers), _fn_get_shader(fn_get_shader)
+      , _flag_samplers(flag_samplers), _flag_shader_resources(flag_shader_resources), _flag_constant_buffers(flag_constant_buffers), _flag_interfaces(flag_interfaces)
+      , _class_instance_count(D3D11_SHADER_MAX_INTERFACES)
+    {
+    }
+
+    void save(ID3D11DeviceContext *context)
+    {
+      for (int i = 0; i < D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT; ++i)
+        if (_GET_BIT(_flag_samplers, i)) (context->*_fn_get_samplers)(i, 1, &_samplers[i]);
+
+      for (int i = 0; i < D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT; ++i)
+        if (_GET_BIT(_flag_shader_resources, i)) (context->*_fn_get_shader_resources)(i, 1, &_shader_resources[i]);
+
+      for (int i = 0; i < D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT; ++i)
+        if (_GET_BIT(_flag_constant_buffers, i)) (context->*_fn_get_constant_buffers)(i, 1, &_shader_constant_buffers[i]);
+
+      (context->*_fn_get_shader)(&_shader.p, NULL, 0);
+    }
+
+    void apply(ID3D11DeviceContext *context)
+    {
+
+    }
+
+    void release()
+    {
+      _shader = NULL;
+    }
+
+  private:
+    const D3DX11_STATE_BLOCK_MASK& _mask;
+
+    GetSamplers _fn_get_samplers;
+    GetShaderResources _fn_get_shader_resources;
+    GetConstantBuffers _fn_get_constant_buffers;
+    GetShader _fn_get_shader;
+
+    const BYTE *_flag_samplers;
+    const BYTE *_flag_shader_resources;
+    const BYTE *_flag_constant_buffers;
+    const BYTE *_flag_interfaces;
+
+    CComPtr<ID3D11SamplerState> _samplers[D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT];
+    CComPtr<ID3D11ShaderResourceView> _shader_resources[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT];
+    CComPtr<ID3D11Buffer> _shader_constant_buffers[D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT];
+    CComPtr<T> _shader; 
+    ID3D11ClassInstance *_class_instances[D3D11_SHADER_MAX_INTERFACES];
+    UINT _class_instance_count; 
+  };
+
+  ShaderStates<ID3D11VertexShader> _vertex_shader;
+  ShaderStates<ID3D11HullShader> _hull_shader;
+  ShaderStates<ID3D11DomainShader> _domain_shader;
+  ShaderStates<ID3D11GeometryShader> _geometry_shader;
+  ShaderStates<ID3D11PixelShader> _pixel_shader;
+  ShaderStates<ID3D11ComputeShader> _compute_shader;
+
 
   CComPtr<ID3D11Buffer> _vertex_buffers[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT];
 	UINT _vertex_buffer_strides[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT];
@@ -275,16 +380,17 @@ struct StateBlock
 	ID3D11DeviceContext *_context;
 };
 
-void StateBlock::save()
+void StateBlock::capture()
 {
-/*
 	if (_mask.VS) _vertex_shader.save(_context);
+/*
 	if (_mask.HS) _hull_shader.save(_context);
 	if (_mask.DS) _domain_shader.save(_context);
 	if (_mask.GS) _geometry_shader.save(_context);
 	if (_mask.PS) _pixel_shader.save(_context);
 	if (_mask.CS) _compute_shader.save(_context);
-
+*/
+/*
 	for (int i = 0; i < D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT; ++i)
 		if (_GET_BIT(_mask.IAVertexBuffers, i)) _context->IAGetVertexBuffers(i, 1, &_vertex_buffers[i], &_vertex_buffer_strides[i], &_vertex_buffer_offsets[i]);
 	if (_mask.IAIndexBuffer) _context->IAGetIndexBuffer(&_index_buffer.p, &_index_buffer_format, &_index_buffer_offset);
@@ -294,28 +400,49 @@ void StateBlock::save()
 	if (_mask.OMRenderTargets) _context->OMGetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, _render_targets._arr, _depth_stencil._arr);
 	if (_mask.OMDepthStencilState) _context->OMGetDepthStencilState(&_depth_stencil_state.p, &_depth_stencil_ref);
 	if (_mask.OMBlendState) _context->OMGetBlendState(&_blend_state.p, _blend_factor, &_sample_mask);
-
+*/
 	_viewport_count = _mask.RSViewports ? D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE : 0;
 	if (_mask.RSViewports) _context->RSGetViewports(&_viewport_count, _viewports);
 	_scissor_rects_count = _mask.RSScissorRects ? D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE : 0;
 	if (_mask.RSScissorRects) _context->RSGetScissorRects(&_scissor_rects_count, _scissor_rects);
 	if (_mask.RSRasterizerState) _context->RSGetState(&_rasterizer_state.p);
-
 	if (_mask.SOBuffers) _context->SOGetTargets(D3D11_SO_BUFFER_SLOT_COUNT, _so_buffers._arr);
-
 	if (_mask.Predication) _context->GetPredication(&_predicate.p, &_predicate_value);
-*/
-	if (_mask.OMBlendState) _context->OMGetBlendState(&_blend_state.p, _blend_factor, &_sample_mask);
-
 }
 
-void StateBlock::restore()
+
+
+void StateBlock::apply()
 {
-	if (_mask.OMBlendState && _blend_state) {
-		_context->OMSetBlendState(_blend_state, _blend_factor, _sample_mask);
-		_blend_state.p->Release();
-	}
+	if (_mask.OMBlendState)
+		_context->OMSetBlendState(_blend_state ? _blend_state : NULL, _blend_factor, _sample_mask);
 }
+
+void StateBlock::release()
+{
+  if (_mask.VS) _vertex_shader.release();
+  if (_mask.HS) _hull_shader.release();
+  if (_mask.DS) _domain_shader.release();
+  if (_mask.GS) _geometry_shader.release();
+  if (_mask.PS) _pixel_shader.release();
+  if (_mask.CS) _compute_shader.release();
+
+  for (int i = 0; i < D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT; ++i)
+    _vertex_buffers[i] = NULL;
+  _index_buffer = NULL;
+  _input_layout = NULL;
+
+  _render_targets.release();
+  _depth_stencil.release();
+
+  _depth_stencil_state = NULL;
+  _rasterizer_state = NULL;
+  _so_buffers.release();
+  _predicate = NULL;
+
+  _blend_state.Release();
+}
+
 #if 0
 struct CState11
 {
@@ -663,6 +790,7 @@ int CTwGraphDirect3D11::Shut()
     m_FontD3DTexRV = NULL;
     if( m_State )
     {
+        m_State->release();
         delete m_State;
         m_State = NULL;
     }
@@ -783,7 +911,7 @@ void CTwGraphDirect3D11::BeginDraw(int _WndWidth, int _WndHeight)
     m_OffsetX = m_OffsetY = 0;
 
     // save context
-    m_State->save();
+    m_State->capture();
 
     // Setup the viewport
     D3D11_VIEWPORT vp;
@@ -815,7 +943,9 @@ void CTwGraphDirect3D11::EndDraw()
     m_Drawing = false;
 
     // restore context
-    m_State->restore();
+    m_State->apply();
+    // apply doesn't release any resources, so we must do that explicitly
+    m_State->release();
 }
 
 //  ---------------------------------------------------------------------------
@@ -829,6 +959,8 @@ bool CTwGraphDirect3D11::IsDrawing()
 
 void CTwGraphDirect3D11::Restore()
 {
+  if (m_State)
+    m_State->release();
 /*
     if( m_State )
     {
