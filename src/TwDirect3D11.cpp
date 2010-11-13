@@ -429,7 +429,7 @@ void StateBlock::apply()
 	_scissor_rects_count = _mask.RSScissorRects ? D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE : 0;
 	if (_mask.RSScissorRects) _context->RSSetScissorRects(_scissor_rects_count, _scissor_rects);
 	if (_mask.RSRasterizerState) _context->RSSetState(_rasterizer_state.p);
-	if (_mask.SOBuffers) _context->SOSetTargets(D3D11_SO_BUFFER_SLOT_COUNT, _so_buffers._arr, NULL);
+	//if (_mask.SOBuffers) _context->SOSetTargets(D3D11_SO_BUFFER_SLOT_COUNT, _so_buffers._arr, NULL);
 	if (_mask.Predication) _context->SetPredication(_predicate.p, _predicate_value);
 
 	if (_mask.OMBlendState) _context->OMSetBlendState(_blend_state ? _blend_state : NULL, _blend_factor, _sample_mask);
